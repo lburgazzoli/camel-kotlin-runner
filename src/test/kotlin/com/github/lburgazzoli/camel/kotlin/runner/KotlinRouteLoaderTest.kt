@@ -21,23 +21,56 @@ import org.apache.camel.component.seda.SedaComponent
 import org.apache.camel.impl.DefaultCamelContext
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import java.nio.charset.StandardCharsets
 
 class KotlinRouteLoaderTest {
     @Test
     fun `load routes with components configuration`() {
-        val context = DefaultCamelContext()
+        val route ="""
+            import org.apache.camel.Exchange
+            import org.apache.camel.component.log.LogComponent
+            import org.apache.camel.component.seda.SedaComponent
+            
+            camel {
+                components {
+                    component<LogComponent>("log") {
+                        setExchangeFormatter {
+                            e: Exchange -> "" + e.getIn().body
+                        }
+                    }
+            
+                    component<SedaComponent>("seda") {
+                        queueSize = 1234
+                        concurrentConsumers = 12
+                    }
+            
+                    component<SedaComponent>("mySeda") {
+                        queueSize = 4321
+                        concurrentConsumers = 21
+                    }
+                }
+            }
+            
+            from("timer:tick")
+                .to("log:info")
+        """.trimIndent()
 
-        context.addRoutes(KotlinRouteLoader("classpath:routes-with-components-configuration.kts"))
-        context.start()
+        route.byteInputStream(StandardCharsets.UTF_8).use {
+            val context = DefaultCamelContext()
 
-        val seda = context.getComponent("seda", SedaComponent::class.java)
-        val mySeda = context.getComponent("mySeda", SedaComponent::class.java)
-        val log = context.getComponent("log", LogComponent::class.java)
+            context.addRoutes(KotlinRouteLoader.load(it))
+            context.start()
 
-        assertThat(seda.queueSize).isEqualTo(1234)
-        assertThat(seda.concurrentConsumers).isEqualTo(12)
-        assertThat(mySeda.queueSize).isEqualTo(4321)
-        assertThat(mySeda.concurrentConsumers).isEqualTo(21)
-        assertThat(log.exchangeFormatter).isNotNull
+            val seda = context.getComponent("seda", SedaComponent::class.java)
+            val mySeda = context.getComponent("mySeda", SedaComponent::class.java)
+            val log = context.getComponent("log", LogComponent::class.java)
+
+            assertThat(seda.queueSize).isEqualTo(1234)
+            assertThat(seda.concurrentConsumers).isEqualTo(12)
+            assertThat(mySeda.queueSize).isEqualTo(4321)
+            assertThat(mySeda.concurrentConsumers).isEqualTo(21)
+            assertThat(log.exchangeFormatter).isNotNull
+        }
+
     }
 }

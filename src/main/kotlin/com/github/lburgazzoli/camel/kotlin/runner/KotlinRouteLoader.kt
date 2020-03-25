@@ -16,11 +16,12 @@
  */
 package com.github.lburgazzoli.camel.kotlin.runner
 
-import org.apache.camel.builder.endpoint.EndpointRouteBuilder
 import com.github.lburgazzoli.camel.kotlin.runner.dsl.IntegrationConfiguration
+import org.apache.camel.builder.endpoint.EndpointRouteBuilder
 import org.apache.camel.support.ResourceHelper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.InputStream
 import java.io.InputStreamReader
 import kotlin.script.experimental.api.ScriptDiagnostic
 import kotlin.script.experimental.api.ScriptEvaluationConfiguration
@@ -33,36 +34,38 @@ import kotlin.script.experimental.jvmhost.createJvmCompilationConfigurationFromT
 
 class KotlinRouteLoader(private val path: String) : EndpointRouteBuilder() {
     companion object {
-        val LOGGER : Logger = LoggerFactory.getLogger(KotlinRouteLoader::class.java)
+        fun load(inputStream: InputStream): EndpointRouteBuilder {
+            return object : EndpointRouteBuilder() {
+                @Throws(Exception::class)
+                override fun configure() {
+                    load(inputStream, this)
+                }
+            }
+        }
+
+        fun load(inputStream: InputStream, builder: EndpointRouteBuilder) {
+            val compiler = JvmScriptCompiler()
+            val evaluator = BasicJvmScriptEvaluator()
+            val host = BasicJvmScriptingHost(compiler = compiler, evaluator = evaluator)
+            val config = createJvmCompilationConfigurationFromTemplate<IntegrationConfiguration>()
+
+            host.eval(
+                InputStreamReader(inputStream).readText().toScriptSource(),
+                config,
+                ScriptEvaluationConfiguration {
+                    //
+                    // Arguments used to initialize the script base class
+                    //
+                    constructorArgs(builder)
+                }
+            )
+        }
     }
 
     @Throws(Exception::class)
     override fun configure() {
-        val builder = this
-        val compiler = JvmScriptCompiler()
-        val evaluator = BasicJvmScriptEvaluator()
-        val host = BasicJvmScriptingHost(compiler = compiler, evaluator = evaluator)
-        val config = createJvmCompilationConfigurationFromTemplate<IntegrationConfiguration>()
-
-        ResourceHelper.resolveMandatoryResourceAsInputStream(context, path).use { `is` ->
-            val result = host.eval(
-                    InputStreamReader(`is`).readText().toScriptSource(),
-                    config,
-                    ScriptEvaluationConfiguration {
-                        //
-                        // Arguments used to initialize the script base class
-                        //
-                        constructorArgs(builder)
-                    }
-            )
-
-            for (report in result.reports) {
-                when (report.severity) {
-                    ScriptDiagnostic.Severity.ERROR -> LOGGER.error("{}", report.message, report.exception)
-                    ScriptDiagnostic.Severity.WARNING -> LOGGER.warn("{}", report.message, report.exception)
-                    else -> LOGGER.info("{}", report.message)
-                }
-            }
+        ResourceHelper.resolveMandatoryResourceAsInputStream(context, path).use {
+            load(it, this)
         }
     }
 }
