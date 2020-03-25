@@ -16,12 +16,17 @@
  */
 package com.github.lburgazzoli.camel.kotlin.runner.dsl
 
+import com.github.lburgazzoli.camel.kotlin.runner.KotlinCompilationConfiguration
 import org.apache.camel.builder.BuilderSupport
 import org.apache.camel.builder.EndpointConsumerBuilder
 import org.apache.camel.builder.endpoint.EndpointBuilderFactory
 import org.apache.camel.builder.endpoint.EndpointRouteBuilder
-import com.github.lburgazzoli.camel.kotlin.runner.KotlinCompilationConfiguration
-import org.apache.camel.model.*
+import org.apache.camel.model.InterceptDefinition
+import org.apache.camel.model.InterceptFromDefinition
+import org.apache.camel.model.InterceptSendToEndpointDefinition
+import org.apache.camel.model.OnCompletionDefinition
+import org.apache.camel.model.OnExceptionDefinition
+import org.apache.camel.model.RouteDefinition
 import org.apache.camel.model.rest.RestDefinition
 import kotlin.script.experimental.annotations.KotlinScript
 
